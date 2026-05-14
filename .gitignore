@@ -1,2 +1,7 @@
 .env
 node_modules/
+dist/
+venv/
+.vite/
+.idea/
+__pycache__/
