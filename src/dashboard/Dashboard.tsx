@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Terminal, Settings, Volume2, VolumeX, Plus, Minus, LogOut } from 'lucide-react';
+import RainEffect from '../components/RainEffect';
 
 const RANK_NAMES: Record<number, string> = {
   1: "Recruit", 2: "Guard", 3: "Scout", 4: "Soldier",
@@ -154,6 +155,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     refreshUser();
+    
+    // Preload robot assets to prevent flickering during transitions
+    Object.values(ROBOT_SOURCES).forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+
     [1,2,3,4,5,6,7,8].forEach(n => {
       const img = new Image();
       img.src = `/assets/badge${n}.png`;
@@ -235,6 +243,7 @@ const Dashboard = () => {
     <div className="page overflow-hidden bg-[#020205] text-white">
       <div className="vignette" />
       <div className="city-bg opacity-30" />
+      <RainEffect />
       <div className="scanline" />
       
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -358,16 +367,21 @@ const Dashboard = () => {
       <main className="layout relative z-10 flex flex-col items-center pt-8">
         <section className={`hero-visual relative w-full max-w-7xl pt-0 pb-4 pointer-events-none transition-all duration-500 ${isTutorialActive ? 'mt-0' : 'mt-12'}`}>
           <motion.div 
-            key={isTutorialActive ? 'tutorial-robot' : 'idle-robot'}
             initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1, y: isTutorialActive ? 40 : 0 }}
-            transition={{ duration: 0.5 }}
-            className="relative z-10 w-[200px] md:w-[240px] mx-auto"
+            animate={{ 
+              opacity: 1, 
+              scale: 1, 
+              y: isTutorialActive ? 40 : 0,
+              filter: isTutorialActive ? 'grayscale(0) contrast(1)' : 'grayscale(0.2) contrast(1.1)'
+            }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="relative z-10 w-[200px] md:w-[240px] mx-auto will-change-transform"
           >
             <img 
               src={robotSrc} 
               alt="Assistant" 
-              className="w-full h-auto filter drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)] grayscale-[0.2] contrast-[1.1]" 
+              className="w-full h-auto drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]" 
+              loading="eager"
             />
           </motion.div>
 

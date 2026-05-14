@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import RainEffect from '../components/RainEffect';
 
 const Auth = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -182,6 +183,8 @@ const Auth = () => {
       }
     } catch (error: any) {
       setErrorMsg(mapFirebaseError(error));
+      // Cleanup client-side auth state if registration/login failed
+      try { await auth.signOut(); } catch (e) {}
     } finally {
       setBusy(false);
     }
@@ -221,6 +224,8 @@ const Auth = () => {
       }
     } catch (error: any) {
       setErrorMsg(mapFirebaseError(error));
+      // Cleanup client-side auth state if registration/login failed
+      try { await auth.signOut(); } catch (e) {}
     } finally {
       setBusy(false);
     }
@@ -248,6 +253,7 @@ const Auth = () => {
   return (
     <div className="page auth-page">
       <div className="city-bg"></div>
+      <RainEffect />
       
       <main className="auth-card is-visible">
         <h1 className="auth-title">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>

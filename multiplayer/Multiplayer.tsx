@@ -20,6 +20,10 @@ const Multiplayer = () => {
 
   const [answer, setAnswer] = useState('');
   const [roundFeedback, setRoundFeedback] = useState<{winner: string|null, correct: string|null}|null>(null);
+  const [localRound, setLocalRound] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [roundSplash, setRoundSplash] = useState<{show: boolean, num: number}>({show: false, num: 0});
+  const [showFinalResults, setShowFinalResults] = useState(false);
 
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -146,8 +150,24 @@ const Multiplayer = () => {
         method: 'POST',
       });
       setMatch(null);
+      setLocalRound(0);
       setAnswer('');
+      setShowFinalResults(false);
       refreshUser();
+      refreshMatch();
+    } catch (e: any) {
+      showError(e.message);
+    }
+  };
+
+  const forfeitMatch = async () => {
+    if (!match || !match.matchId) return;
+    if (!window.confirm("Are you sure you want to abort this mission? You will forfeit the duel.")) return;
+    showError('');
+    try {
+      await api(`/api/multiplayer/match/${encodeURIComponent(match.matchId)}/forfeit`, {
+        method: 'POST',
+      });
       refreshMatch();
     } catch (e: any) {
       showError(e.message);
@@ -200,12 +220,56 @@ const Multiplayer = () => {
   useEffect(() => {
     setAnswer('');
     if (match?.lastRoundCorrectAnswer) {
-      const winnerName = match.lastRoundWinner ? (match.usernames[match.lastRoundWinner] || 'Operative') : 'Draw (Both Wrong)';
+      const winnerName = match.lastRoundWinner ? (match.usernames[match.lastRoundWinner] || 'Operative') : 'None (Draw)';
       setRoundFeedback({ winner: winnerName, correct: match.lastRoundCorrectAnswer });
-      const timer = setTimeout(() => setRoundFeedback(null), 5000);
+      // Keep results visible for a while
+      const timer = setTimeout(() => setRoundFeedback(null), 6000);
       return () => clearTimeout(timer);
     }
-  }, [match?.currentRound]);
+  }, [match?.currentRound, match?.status]);
+
+  // Round Transition Flow Logic
+  useEffect(() => {
+    if (!match) return;
+
+    // Trigger flow if backend round is ahead of displayed round
+    if (match.status === 'open' && match.currentRound > localRound && !isTransitioning) {
+      const runRoundFlow = async () => {
+        setIsTransitioning(true);
+        
+        // 1. If not the first round, allow time for round results to be viewed
+        if (localRound > 0) {
+          await new Promise(r => setTimeout(r, 4500));
+          setRoundFeedback(null);
+        }
+
+        // 2. Show Round Start Splash
+        setRoundSplash({ show: true, num: match.currentRound });
+        await new Promise(r => setTimeout(r, 2000));
+        setRoundSplash({ show: false, num: 0 });
+
+        // 3. Finally show the new round's question
+        setLocalRound(match.currentRound);
+        setIsTransitioning(false);
+      };
+      runRoundFlow();
+    } else if (match.status === 'done' && !showFinalResults && !isTransitioning) {
+      const finishMatch = async () => {
+        setIsTransitioning(true);
+        // If the match ended normally (not forfeit), pause to show last round results
+        if (match.lastRoundCorrectAnswer && match.resultReason !== 'forfeit') {
+          await new Promise(r => setTimeout(r, 6000));
+          setRoundFeedback(null);
+        }
+        setShowFinalResults(true);
+        setIsTransitioning(false);
+      };
+      finishMatch();
+    } else if (match.status === 'open' && localRound === 0) {
+        // Catch-up for initial match load
+        setLocalRound(0); // Ensure flow triggers
+    }
+  }, [match?.currentRound, match?.status, localRound, isTransitioning, showFinalResults]);
 
   let duelStatus = '';
   if (match && match.status === 'open') {
@@ -349,22 +413,48 @@ const Multiplayer = () => {
         )}
 
         {roundFeedback && (
-          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm">
-            <div className="tactical-panel bg-[#0a0a0f]/95 border-[color:var(--current-theme-color)] p-4 shadow-[0_0_30px_rgba(0,229,255,0.2)] animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--current-theme-color)]">Round Result</span>
-                <button onClick={() => setRoundFeedback(null)} className="text-white/20 hover:text-white"><XIcon size={14}/></button>
+          <div className="absolute top-[58%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm px-4">
+            <div className="tactical-panel bg-[#0a0a0f]/98 border-[color:var(--current-theme-color)] p-6 shadow-[0_0_50px_rgba(0,229,255,0.3)] animate-in fade-in zoom-in duration-300">
+              <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                <span className="font-mono text-xs uppercase tracking-widest text-[color:var(--current-theme-color)]">Round Transmission Intercepted</span>
+                <button onClick={() => setRoundFeedback(null)} className="text-white/20 hover:text-white"><XIcon size={16}/></button>
               </div>
-              <p className="font-sans text-sm mb-1">Winner: <span className="text-[color:var(--current-theme-color)] font-bold">{roundFeedback.winner === 'Draw (Both Wrong)' ? 'None' : roundFeedback.winner}</span></p>
-              <p className="font-mono text-[10px] text-white/40">Solution: {roundFeedback.correct}</p>
+              <div className="space-y-4 text-center">
+                <div>
+                  <p className="font-mono text-[10px] text-white/40 uppercase mb-1">Round Winner</p>
+                  <p className="font-sans text-xl text-[color:var(--current-theme-color)] font-bold">
+                    {roundFeedback.winner === 'None (Draw)' ? 'NO WINNER (DRAW)' : roundFeedback.winner}
+                  </p>
+                </div>
+                <div className="bg-white/5 p-3 rounded border border-white/5">
+                  <p className="font-mono text-[10px] text-white/40 uppercase mb-1">Decrypted Solution</p>
+                  <p className="font-mono text-lg tracking-wider text-white">{roundFeedback.correct}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {match && match.status === 'open' && (
+        {roundSplash.show && (
+          <div className="mp-splash">
+            <div className="mp-splash-label">Initializing Round</div>
+            <div className="mp-splash-title">ROUND {roundSplash.num}</div>
+            <div className="mp-splash-line"></div>
+          </div>
+        )}
+
+        {match && match.status === 'open' && localRound === match.currentRound && !roundSplash.show && (
           <section className="mp-panel mp-panel--duel">
             <div className="mp-duel-header">
-              <h2 className="mp-panel-title">Active duel</h2>
+              <div className="flex flex-col gap-1">
+                <h2 className="mp-panel-title">Active duel</h2>
+                <button 
+                  onClick={forfeitMatch}
+                  className="text-[10px] text-red-400/60 hover:text-red-400 font-mono uppercase tracking-tighter text-left transition-colors"
+                >
+                  [ Abort Mission ]
+                </button>
+              </div>
               <div className="mp-scoreboard">
                 {match.uids.map((uid: string) => (
                   <div key={uid} className={`mp-score-item ${uid === user?.uid ? 'mp-score-item--me' : ''}`}>
@@ -403,7 +493,7 @@ const Multiplayer = () => {
           </section>
         )}
 
-        {match && match.status === 'done' && (
+        {match && match.status === 'done' && showFinalResults && (
           <section className="mp-panel mp-panel--result">
             <p className={`mp-result-line ${resultClass}`}>{resultTitle}</p>
             <p className="mp-result-sub">{resultSub}</p>

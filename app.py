@@ -421,6 +421,14 @@ def auth_login():
         user_ref = get_db().collection("users").document(uid)
         existing = user_ref.get()
         if not existing.exists:
+            # Cleanup: If a user signs in with Google but hasn't registered, 
+            # Firebase Auth creates an entry. We purge it to keep the Auth table clean 
+            # and consistent with our users collection.
+            try:
+                fb_auth.delete_user(uid)
+            except Exception as e:
+                print(f"Failed to cleanup orphaned Auth user {uid}: {e}")
+                
             return (
                 jsonify({"error": "No account found. Please register first."}),
                 404,
@@ -1010,6 +1018,8 @@ def _mp_public_match_dict(mid: str, data: dict, viewer_uid: str):
         "targetScore": data.get("targetScore", 1),
         "scores": data.get("scores") or {},
         "currentRound": data.get("currentRound", 1),
+        "lastRoundWinner": data.get("lastRoundWinner"),
+        "lastRoundCorrectAnswer": data.get("lastRoundCorrectAnswer"),
         "myAnswered": viewer_uid in answers,
         "opponentAnswered": any(u != viewer_uid for u in answers.keys()),
         "answersCount": len(answers),
@@ -1557,6 +1567,38 @@ def mp_ack_match(match_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/multiplayer/match/<match_id>/forfeit", methods=["POST"])
+@require_auth
+def mp_forfeit_match(match_id):
+    """End the match early by forfeiting to the opponent."""
+    if not firebase_ready:
+        return jsonify({"error": "Server not configured."}), 500
+
+    my_uid = request.session_user["uid"]
+    mref = get_db().collection("mp_matches").document(match_id)
+    msnap = mref.get()
+    if not msnap.exists:
+        return jsonify({"error": "Match not found."}), 404
+
+    match = msnap.to_dict() or {}
+    if my_uid not in (match.get("uids") or []):
+        return jsonify({"error": "Not in this match."}), 403
+    if match.get("status") != "open":
+        return jsonify({"error": "Match already finished."}), 400
+
+    uids = match.get("uids") or []
+    opponent_uid = next((u for u in uids if u != my_uid), None)
+    
+    mref.update({
+        "status": "done",
+        "winnerUid": opponent_uid,
+        "loserUid": my_uid,
+        "resultReason": "forfeit"
+    })
+    
+    return jsonify({"ok": True})
+
+
 # ── CipherLab ─────────────────────────────────────────────────────────────────
 
 @app.route("/cipherlab")
@@ -1678,20 +1720,36 @@ def cl_leaderboard():
     entries = []
     try:
         # Query main users collection ordered by xp
+        # Fetch more than 10 to allow for filtering of deleted accounts
         docs = (
             get_db()
             .collection("users")
             .order_by("xp", direction=firestore.Query.DESCENDING)
-            .limit(10)
+            .limit(20)
             .stream()
         )
         for d in docs:
+            uid = d.id
+            # Verify if user still exists in Firebase Auth
+            if not _is_uid_valid(uid):
+                # Orphaned document! Purge it from the database to keep it clean.
+                try:
+                    d.reference.delete()
+                except Exception:
+                    pass
+                continue
+                
             data = d.to_dict()
             entries.append({
-                "uid": d.id,
+                "uid": uid,
                 "callsign": data.get("username", "Unknown"),
                 "points": data.get("xp", 0),
             })
+            
+            # Once we have 10 valid entries, we can stop
+            if len(entries) >= 10:
+                break
+                
     except Exception as exc:
         print(f"CipherLab leaderboard error: {exc}")
 
