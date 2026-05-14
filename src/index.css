@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Teko", sans-serif;
+  --font-tech: "Rajdhani", sans-serif;
+
+  --color-void: var(--current-bg-color, #050505);
+  --color-surface-dark: var(--current-surface-color, #0a0a0c);
+  --color-surface-panel: var(--current-panel-color, #121217);
+  --color-surface-highlight: #1c1c24;
+  
+  --color-accent-cyan: var(--current-theme-color, #00e5ff);
+  --color-accent-magenta: #ff3e3e;
+}
+
+:root {
+  --current-theme-color: #00f2ff;
+  --bg-deep: #020205;
+  --surface-tactical: rgba(10, 10, 15, 0.9);
+  --border-glow: rgba(0, 242, 255, 0.3);
+  --noise-opacity: 0.03;
+}
+
+body {
+  @apply bg-[#020205] text-white selection:bg-[#00f2ff] selection:text-black overflow-x-hidden;
+  font-family: var(--font-sans);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 242, 255, 0.05) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3BaseFilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.terminal-grid {
+  background-image: 
+    linear-gradient(color-mix(in srgb, var(--current-theme-color) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--current-theme-color) 5%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 50;
+  background: linear-gradient(0deg, rgba(0,0,0,0) 0%, color-mix(in srgb, var(--current-theme-color) 2%, transparent) 50%, rgba(0,0,0,0) 100%);
+  opacity: 0.1;
+  position: fixed;
+  bottom: 100%;
+  pointer-events: none;
+  animation: scanline 10s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(200vh); }
+}
+
+.glow-theme {
+  filter: drop-shadow(0 0 8px var(--current-theme-color));
+}
+
+.glass-panel {
+  @apply backdrop-blur-2xl bg-black/60 border border-white/5;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.tactical-panel {
+  @apply bg-[#0a0a0f]/90 border border-white/10 rounded-sm relative overflow-hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+.tactical-panel::before {
+  content: '';
+  @apply absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent;
+}
+
+.cyber-button {
+  @apply relative overflow-hidden px-6 py-3 bg-[var(--current-theme-color)] text-black font-mono font-black uppercase tracking-[0.2em] transition-all duration-200;
+  @apply hover:bg-white hover:shadow-[0_0_25px_var(--current-theme-color)] active:scale-95;
+  clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0% 30%);
+}
+
+.cyber-button-outline {
+  @apply relative overflow-hidden px-6 py-3 bg-transparent border-2 border-[var(--current-theme-color)] text-[var(--current-theme-color)] font-mono font-bold uppercase tracking-widest transition-all duration-200;
+  @apply hover:bg-[var(--current-theme-color)] hover:text-black hover:shadow-[0_0_15px_var(--current-theme-color)];
+  clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0% 30%);
+}
+
+.cyber-button::before {
+  content: '';
+  @apply absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-20deg];
+  transition: all 0.5s ease;
+}
+
+.cyber-button:hover::before {
+  @apply left-full;
+}
+
+/* ── Story Mode Utilities ──────────────────────────────── */
+
+.grid-bg {
+  background-image: 
+    linear-gradient(var(--current-grid-color, rgba(255, 255, 255, 0.02)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--current-grid-color, rgba(255, 255, 255, 0.02)) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.glow-text-theme {
+  text-shadow: 0 0 16px color-mix(in srgb, var(--current-theme-color) 40%, transparent);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tile-highlight {
+  @apply !ring-4 !ring-[#59f2ff] !shadow-[0_0_80px_rgba(89,242,255,0.6)] !scale-[1.08] !z-[160] !border-[#59f2ff] !bg-black;
+  animation: pulse-highlight 1.5s infinite;
+}
+
+@keyframes pulse-highlight {
+  0% { box-shadow: 0 0 30px rgba(89,242,255,0.4); }
+  50% { box-shadow: 0 0 90px rgba(89,242,255,0.8); }
+  100% { box-shadow: 0 0 30px rgba(89,242,255,0.4); }
+}
